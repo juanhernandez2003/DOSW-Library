@@ -1,4 +1,4 @@
 package edu.eci.dosw.core.validator;
 
-public class LoanService {
+public class LoanValidator {
 }
