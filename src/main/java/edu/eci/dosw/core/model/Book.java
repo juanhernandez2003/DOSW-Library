@@ -1,4 +1,4 @@
-package edu.eci.dosw.model;
+package edu.eci.dosw.core.model;
 
 public class Book{
     private String title;
