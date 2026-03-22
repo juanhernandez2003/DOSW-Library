@@ -1,5 +1,7 @@
 package edu.eci.dosw.controller;
 
+import java.util.ArrayList;
+import java.util.List;
 import edu.eci.dosw.controller.dto.BookDTO;
 import edu.eci.dosw.core.model.Book;
 import edu.eci.dosw.core.service.BookService;
@@ -28,8 +30,8 @@ public class BookController {
 
     @Operation(summary = "Obtener todos los libros")
     @GetMapping
-    public ResponseEntity<Map<Book, Integer>> getAllBooks() {
-        return ResponseEntity.ok(bookService.getAllBooks());
+    public ResponseEntity<List<Book>> getAllBooks() {
+        return ResponseEntity.ok(new ArrayList<>(bookService.getAllBooks().keySet()));
     }
 
     @Operation(summary = "Obtener un libro por ID")
