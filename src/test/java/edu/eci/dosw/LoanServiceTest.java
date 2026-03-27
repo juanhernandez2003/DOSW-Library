@@ -1,78 +1,90 @@
 package edu.eci.dosw;
 
-import edu.eci.dosw.core.exception.BookNotAvailableException;
-import edu.eci.dosw.core.model.Loan;
-import edu.eci.dosw.core.model.User;
-import edu.eci.dosw.core.model.Book;
-import edu.eci.dosw.core.service.BookService;
+import edu.eci.dosw.core.exception.BusinessRuleException;
+import edu.eci.dosw.core.model.LoanStatus;
+import edu.eci.dosw.core.model.Role;
 import edu.eci.dosw.core.service.LoanService;
-import edu.eci.dosw.core.service.UserService;
-import edu.eci.dosw.core.validator.BookValidator;
-import edu.eci.dosw.core.validator.LoanValidator;
-import edu.eci.dosw.core.validator.UserValidator;
+import edu.eci.dosw.persistence.entity.Book;
+import edu.eci.dosw.persistence.entity.LibraryUser;
+import edu.eci.dosw.persistence.entity.Loan;
+import edu.eci.dosw.persistence.repository.BookRepository;
+import edu.eci.dosw.persistence.repository.LoanRepository;
+import edu.eci.dosw.persistence.repository.UserRepository;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 class LoanServiceTest {
 
+    private LoanRepository loanRepository;
+    private BookRepository bookRepository;
+    private UserRepository userRepository;
     private LoanService loanService;
-    private BookService bookService;
-    private UserService userService;
-    private String bookId;
-    private String userId;
+    private LibraryUser user;
+    private Book book;
 
     @BeforeEach
     void setUp() {
-        bookService = new BookService(new BookValidator());
-        userService = new UserService(new UserValidator());
-        loanService = new LoanService(bookService, userService, new LoanValidator());
+        loanRepository = Mockito.mock(LoanRepository.class);
+        bookRepository = Mockito.mock(BookRepository.class);
+        userRepository = Mockito.mock(UserRepository.class);
+        loanService = new LoanService(loanRepository, bookRepository, userRepository);
 
-        Book book = bookService.addBook("Clean Code", "Martin", 2);
-        User user = userService.registerUser("Juan");
-        bookId = book.getId();
-        userId = user.getId();
+        user = new LibraryUser();
+        user.setId(1L);
+        user.setName("Juan");
+        user.setUsername("juan");
+        user.setPassword("encoded");
+        user.setRole(Role.USER);
+
+        book = new Book();
+        book.setId(10L);
+        book.setTitle("Refactoring");
+        book.setAuthor("Fowler");
+        book.setTotalCopies(4);
+        book.setAvailableCopies(2);
     }
 
     @Test
-    void testCreateLoanSuccess() {
-        Loan loan = loanService.createLoan(bookId, userId);
-        assertNotNull(loan);
-        assertEquals(Loan.Status.ACTIVE, loan.getStatus());
+    void shouldDecreaseStockWhenLoanIsCreated() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(bookRepository.findById(10L)).thenReturn(Optional.of(book));
+        when(loanRepository.countByUserAndStatus(user, LoanStatus.ACTIVE)).thenReturn(0L);
+        when(loanRepository.save(any(Loan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Loan loan = loanService.createLoan(1L, 10L);
+
+        assertEquals(LoanStatus.ACTIVE, loan.getStatus());
+        assertEquals(1, book.getAvailableCopies());
     }
 
     @Test
-    void testCreateLoanBookNotFound() {
-        assertThrows(BookNotAvailableException.class,
-                () -> loanService.createLoan("id-inexistente", userId));
+    void shouldRejectLoanWithoutAvailableStock() {
+        book.setAvailableCopies(0);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(bookRepository.findById(10L)).thenReturn(Optional.of(book));
+
+        assertThrows(BusinessRuleException.class, () -> loanService.createLoan(1L, 10L));
     }
 
     @Test
-    void testCreateLoanUserNotFound() {
-        assertThrows(Exception.class,
-                () -> loanService.createLoan(bookId, "id-inexistente"));
-    }
+    void shouldRejectReturnedLoanTwice() {
+        Loan loan = new Loan();
+        loan.setId(7L);
+        loan.setBook(book);
+        loan.setUser(user);
+        loan.setStatus(LoanStatus.RETURNED);
 
-    @Test
-    void testCreateLoanBookNotAvailable() {
-        bookService.updateAvailability(bookId, false);
-        assertThrows(BookNotAvailableException.class,
-                () -> loanService.createLoan(bookId, userId));
-    }
+        when(loanRepository.findById(7L)).thenReturn(Optional.of(loan));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-    @Test
-    void testLoanLimitExceeded() {
-        // Agregar más libros para llegar al límite
-        String b2 = bookService.addBook("Refactoring", "Fowler", 1).getId();
-        String b3 = bookService.addBook("DDD", "Evans", 1).getId();
-        String b4 = bookService.addBook("TDD", "Beck", 1).getId();
-
-        loanService.createLoan(bookId, userId);
-        loanService.createLoan(b2, userId);
-        loanService.createLoan(b3, userId);
-
-        assertThrows(RuntimeException.class,
-                () -> loanService.createLoan(b4, userId));
+        assertThrows(BusinessRuleException.class, () -> loanService.returnLoan(7L, 1L));
     }
 }
