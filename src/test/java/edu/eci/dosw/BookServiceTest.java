@@ -1,61 +1,58 @@
 package edu.eci.dosw;
 
-import edu.eci.dosw.core.exception.BookNotAvailableException;
-import edu.eci.dosw.core.model.Book;
+import edu.eci.dosw.controller.dto.request.BookRequest;
+import edu.eci.dosw.core.exception.BusinessRuleException;
 import edu.eci.dosw.core.service.BookService;
-import edu.eci.dosw.core.validator.BookValidator;
+import edu.eci.dosw.persistence.entity.Book;
+import edu.eci.dosw.persistence.repository.BookRepository;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 class BookServiceTest {
 
+    private BookRepository bookRepository;
     private BookService bookService;
 
     @BeforeEach
     void setUp() {
-        bookService = new BookService(new BookValidator());
+        bookRepository = Mockito.mock(BookRepository.class);
+        bookService = new BookService(bookRepository);
     }
 
     @Test
-    void testAddBookSuccess() {
-        Book book = bookService.addBook("Clean Code", "Robert Martin", 3);
-        assertNotNull(book.getId());
-        assertEquals("Clean Code", book.getTitle());
-        assertTrue(book.isAvailable());
+    void shouldRejectBookWithInvalidTotalCopies() {
+        BookRequest request = new BookRequest("Clean Code", "Robert C. Martin", 0, 0);
+        assertThrows(BusinessRuleException.class, () -> bookService.create(request));
     }
 
     @Test
-    void testGetBookByIdNotFound() {
-        assertThrows(BookNotAvailableException.class,
-                () -> bookService.getBookById("id-inexistente"));
+    void shouldRejectBookWhenAvailableExceedsTotal() {
+        BookRequest request = new BookRequest("Clean Architecture", "Robert C. Martin", 3, 4);
+        assertThrows(BusinessRuleException.class, () -> bookService.create(request));
     }
 
     @Test
-    void testUpdateAvailability() {
-        Book book = bookService.addBook("Refactoring", "Fowler", 2);
-        bookService.updateAvailability(book.getId(), false);
-        assertFalse(bookService.getBookById(book.getId()).isAvailable());
-    }
+    void shouldUpdateBookStock() {
+        Book book = new Book();
+        book.setId(1L);
+        book.setTitle("DDD");
+        book.setAuthor("Evans");
+        book.setTotalCopies(5);
+        book.setAvailableCopies(2);
 
-    @Test
-    void testDecreaseCopyToZeroSetsUnavailable() {
-        Book book = bookService.addBook("DDD", "Evans", 1);
-        bookService.decreaseCopy(book.getId());
-        assertFalse(bookService.getBookById(book.getId()).isAvailable());
-    }
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-    @Test
-    void testDecreaseCopyNoStock() {
-        Book book = bookService.addBook("TDD", "Beck", 0);
-        assertThrows(BookNotAvailableException.class,
-                () -> bookService.decreaseCopy(book.getId()));
-    }
+        Book updated = bookService.changeStock(1L, 8, 3);
 
-    @Test
-    void testAddBookEmptyTitleThrows() {
-        assertThrows(IllegalArgumentException.class,
-                () -> bookService.addBook("", "Autor", 1));
+        assertEquals(8, updated.getTotalCopies());
+        assertEquals(3, updated.getAvailableCopies());
     }
 }
