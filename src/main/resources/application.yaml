@@ -13,6 +13,17 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/dosw_library}
+      auto-index-creation: true
+
+app:
+  persistence:
+    mongo:
+      enabled: ${MONGODB_ENABLED:false}
+      write-mode: ${MONGODB_WRITE_MODE:SYNC}
+      database: ${MONGODB_DATABASE:dosw_library}
 server:
   ssl:
     enabled: ${SERVER_SSL_ENABLED:false}

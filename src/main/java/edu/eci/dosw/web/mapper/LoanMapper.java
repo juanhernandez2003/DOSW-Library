@@ -1,7 +1,9 @@
 package edu.eci.dosw.persistence.mapper;
 
+import edu.eci.dosw.controller.dto.response.LoanHistoryResponse;
 import edu.eci.dosw.controller.dto.response.LoanResponse;
 import edu.eci.dosw.persistence.entity.Loan;
+import edu.eci.dosw.persistence.entity.LoanHistoryEntry;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -14,6 +16,8 @@ public interface LoanMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "username", source = "user.username")
     LoanResponse toResponse(Loan loan);
+
+    LoanHistoryResponse toHistoryResponse(LoanHistoryEntry entry);
 
     List<LoanResponse> toResponseList(List<Loan> loans);
 }

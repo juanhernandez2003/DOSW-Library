@@ -1,10 +1,13 @@
 package edu.eci.dosw.core.service;
 
+import edu.eci.dosw.core.model.BookAvailabilityStatus;
 import edu.eci.dosw.core.exception.BusinessRuleException;
 import edu.eci.dosw.core.exception.ForbiddenOperationException;
 import edu.eci.dosw.core.exception.ResourceNotFoundException;
 import edu.eci.dosw.core.model.LoanStatus;
+import edu.eci.dosw.persistence.entity.LoanHistoryEntry;
 import edu.eci.dosw.core.model.Role;
+import edu.eci.dosw.infrastructure.mongodb.DualPersistenceSyncService;
 import edu.eci.dosw.persistence.entity.Book;
 import edu.eci.dosw.persistence.entity.LibraryUser;
 import edu.eci.dosw.persistence.entity.Loan;
@@ -12,6 +15,7 @@ import edu.eci.dosw.persistence.repository.BookRepository;
 import edu.eci.dosw.persistence.repository.LoanRepository;
 import edu.eci.dosw.persistence.repository.UserRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,7 @@ public class LoanService {
     private final LoanRepository loanRepository;
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
+    private final DualPersistenceSyncService dualPersistenceSyncService;
 
     @Transactional
     public Loan createLoan(Long userId, Long bookId) {
@@ -44,6 +49,8 @@ public class LoanService {
         }
 
         book.setAvailableCopies(book.getAvailableCopies() - 1);
+        book.setBorrowedCopies(book.getBorrowedCopies() + 1);
+        book.setAvailabilityStatus(resolveAvailabilityStatus(book.getAvailableCopies(), book.getTotalCopies()));
         bookRepository.save(book);
 
         Loan loan = new Loan();
@@ -51,7 +58,11 @@ public class LoanService {
         loan.setUser(user);
         loan.setLoanDate(LocalDate.now());
         loan.setStatus(LoanStatus.ACTIVE);
-        return loanRepository.save(loan);
+        loan.getHistory().add(new LoanHistoryEntry(LoanStatus.ACTIVE, LocalDateTime.now()));
+        Loan savedLoan = loanRepository.save(loan);
+        dualPersistenceSyncService.syncBook(book);
+        dualPersistenceSyncService.syncLoan(savedLoan);
+        return savedLoan;
     }
 
     @Transactional
@@ -79,9 +90,15 @@ public class LoanService {
         loan.setStatus(LoanStatus.RETURNED);
         loan.setReturnedDate(LocalDate.now());
         book.setAvailableCopies(book.getAvailableCopies() + 1);
+        book.setBorrowedCopies(book.getBorrowedCopies() - 1);
+        book.setAvailabilityStatus(resolveAvailabilityStatus(book.getAvailableCopies(), book.getTotalCopies()));
+        loan.getHistory().add(new LoanHistoryEntry(LoanStatus.RETURNED, LocalDateTime.now()));
 
         bookRepository.save(book);
-        return loanRepository.save(loan);
+        Loan savedLoan = loanRepository.save(loan);
+        dualPersistenceSyncService.syncBook(book);
+        dualPersistenceSyncService.syncLoan(savedLoan);
+        return savedLoan;
     }
 
     public List<Loan> findAll() {
@@ -92,5 +109,15 @@ public class LoanService {
         LibraryUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + userId));
         return loanRepository.findByUserOrderByLoanDateDesc(user);
+    }
+
+    private BookAvailabilityStatus resolveAvailabilityStatus(Integer availableCopies, Integer totalCopies) {
+        if (availableCopies == 0) {
+            return BookAvailabilityStatus.OUT_OF_STOCK;
+        }
+        if (availableCopies <= Math.max(1, totalCopies / 4)) {
+            return BookAvailabilityStatus.LOW_STOCK;
+        }
+        return BookAvailabilityStatus.AVAILABLE;
     }
 }

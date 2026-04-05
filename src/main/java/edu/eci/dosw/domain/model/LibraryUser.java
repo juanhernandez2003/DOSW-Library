@@ -1,5 +1,6 @@
 package edu.eci.dosw.persistence.entity;
 
+import edu.eci.dosw.core.model.MembershipType;
 import edu.eci.dosw.core.model.Role;
 
 import jakarta.persistence.Column;
@@ -11,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -34,12 +36,22 @@ public class LibraryUser {
     @Column(nullable = false, unique = true)
     private String username;
 
+    @Column(nullable = false, unique = true)
+    private String email;
+
     @Column(nullable = false)
     private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    private MembershipType membershipType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
+
+    @Column(nullable = false)
+    private LocalDate addedToLibraryAt;
 
     @OneToMany(mappedBy = "user")
     private List<Loan> loans = new ArrayList<>();

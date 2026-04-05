@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BookRepository extends JpaRepository<Book, Long> {
 
     List<Book> findByAvailableCopiesGreaterThan(Integer availableCopies);
+
+    boolean existsByIsbn(String isbn);
 }

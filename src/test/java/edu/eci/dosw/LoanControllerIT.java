@@ -29,7 +29,8 @@ class LoanControllerIT extends AbstractControllerIT {
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoanRequest(book.getId()))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.history.length()").value(1));
 
         assertEquals(1, loanRepository.count());
         assertEquals(2, bookRepository.findById(book.getId()).orElseThrow().getAvailableCopies());
@@ -51,7 +52,7 @@ class LoanControllerIT extends AbstractControllerIT {
         LibraryUser user = createUser(Role.USER);
         Book book = createBook(5, 0);
 
-        mockMvc.perform(post("/api/loans")
+                mockMvc.perform(post("/api/loans")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(user))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoanRequest(book.getId()))))
@@ -65,12 +66,14 @@ class LoanControllerIT extends AbstractControllerIT {
         Book book = createBook(5, 2);
         Loan loan = createLoan(user, book, LoanStatus.ACTIVE);
         book.setAvailableCopies(1);
+        book.setBorrowedCopies(4);
         bookRepository.save(book);
 
         mockMvc.perform(patch("/api/loans/{id}/return", loan.getId())
                         .header(AUTHORIZATION, "Bearer " + tokenFor(user)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("RETURNED"));
+                .andExpect(jsonPath("$.status").value("RETURNED"))
+                .andExpect(jsonPath("$.history.length()").value(2));
 
         Loan updatedLoan = loanRepository.findById(loan.getId()).orElseThrow();
         assertEquals(LoanStatus.RETURNED, updatedLoan.getStatus());

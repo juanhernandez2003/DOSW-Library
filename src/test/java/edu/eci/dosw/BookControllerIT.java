@@ -20,14 +20,16 @@ class BookControllerIT extends AbstractControllerIT {
     @Test
     void createShouldPersistBook() throws Exception {
         LibraryUser librarian = createUser(Role.LIBRARIAN);
-        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+        BookRequest request = sampleBookRequest("Clean Code", "Martin", 5, 5);
 
         mockMvc.perform(post("/api/books")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.title").value("Clean Code"));
+                .andExpect(jsonPath("$.title").value("Clean Code"))
+                .andExpect(jsonPath("$.isbn").exists())
+                .andExpect(jsonPath("$.availabilityStatus").value("AVAILABLE"));
 
         assertEquals(1, bookRepository.count());
         assertEquals(5, bookRepository.findAll().get(0).getAvailableCopies());
@@ -36,7 +38,7 @@ class BookControllerIT extends AbstractControllerIT {
     @Test
     void createShouldRejectUserWithoutLibrarianRole() throws Exception {
         LibraryUser user = createUser(Role.USER);
-        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+        BookRequest request = sampleBookRequest("Clean Code", "Martin", 5, 5);
 
         mockMvc.perform(post("/api/books")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(user))
@@ -48,7 +50,7 @@ class BookControllerIT extends AbstractControllerIT {
 
     @Test
     void createShouldRejectUnauthenticatedRequest() throws Exception {
-        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+        BookRequest request = sampleBookRequest("Clean Code", "Martin", 5, 5);
 
         mockMvc.perform(post("/api/books")
                         .contentType(APPLICATION_JSON)
@@ -59,7 +61,7 @@ class BookControllerIT extends AbstractControllerIT {
 
     @Test
     void createShouldRejectInvalidToken() throws Exception {
-        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+        BookRequest request = sampleBookRequest("Clean Code", "Martin", 5, 5);
 
         mockMvc.perform(post("/api/books")
                         .header(AUTHORIZATION, "Bearer token-invalido")
@@ -72,7 +74,7 @@ class BookControllerIT extends AbstractControllerIT {
     @Test
     void createShouldRejectInvalidStock() throws Exception {
         LibraryUser librarian = createUser(Role.LIBRARIAN);
-        BookRequest request = new BookRequest("Clean Code", "Martin", 0, 0);
+        BookRequest request = sampleBookRequest("Clean Code", "Martin", 0, 0);
 
         mockMvc.perform(post("/api/books")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
@@ -114,14 +116,15 @@ class BookControllerIT extends AbstractControllerIT {
                         .header(AUTHORIZATION, "Bearer " + tokenFor(user)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(book.getId()))
-                .andExpect(jsonPath("$.availableCopies").value(2));
+                .andExpect(jsonPath("$.availableCopies").value(2))
+                .andExpect(jsonPath("$.categories[0]").exists());
     }
 
     @Test
     void updateShouldModifyBookInDatabase() throws Exception {
         LibraryUser librarian = createUser(Role.LIBRARIAN);
         Book book = createBook(3, 2);
-        BookRequest request = new BookRequest("Updated", "Autor", 7, 4);
+        BookRequest request = sampleBookRequest("Updated", "Autor", 7, 4);
 
         mockMvc.perform(put("/api/books/{id}", book.getId())
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
@@ -129,7 +132,8 @@ class BookControllerIT extends AbstractControllerIT {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCopies").value(7))
-                .andExpect(jsonPath("$.availableCopies").value(4));
+                .andExpect(jsonPath("$.availableCopies").value(4))
+                .andExpect(jsonPath("$.borrowedCopies").value(3));
 
         Book updated = bookRepository.findById(book.getId()).orElseThrow();
         assertEquals(7, updated.getTotalCopies());
@@ -140,7 +144,7 @@ class BookControllerIT extends AbstractControllerIT {
     void updateShouldRejectAvailableCopiesGreaterThanTotal() throws Exception {
         LibraryUser librarian = createUser(Role.LIBRARIAN);
         Book book = createBook(3, 2);
-        BookRequest request = new BookRequest("Updated", "Autor", 4, 5);
+        BookRequest request = sampleBookRequest("Updated", "Autor", 4, 5);
 
         mockMvc.perform(put("/api/books/{id}", book.getId())
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))

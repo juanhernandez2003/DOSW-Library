@@ -3,6 +3,8 @@ package edu.eci.dosw.persistence.entity;
 import edu.eci.dosw.core.model.LoanStatus;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,8 +14,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -45,4 +50,9 @@ public class Loan {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private LoanStatus status;
+
+    @ElementCollection
+    @CollectionTable(name = "loan_history", joinColumns = @JoinColumn(name = "loan_id"))
+    @OrderColumn(name = "history_order")
+    private List<LoanHistoryEntry> history = new ArrayList<>();
 }

@@ -50,6 +50,15 @@ erDiagram
 
 La capa `persistence` ya fue implementada con Spring Data JPA.
 
+### Persistencia Hibrida
+
+El sistema ahora trabaja en dos mundos al mismo tiempo:
+
+- PostgreSQL sigue siendo la fuente principal de verdad.
+- MongoDB Atlas funciona como persistencia secundaria y flexible para proyecciones sincronizadas.
+
+Mongo se habilita solo si `MONGODB_ENABLED=true`. Cuando esta activo, cada escritura exitosa en PostgreSQL replica el agregado correspondiente en MongoDB.
+
 ### Entidades JPA
 
 - `Book`: [Book.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/domain/model/Book.java)
@@ -73,6 +82,21 @@ Consultas relevantes:
 ### Configuracion JPA
 
 La dependencia `spring-boot-starter-data-jpa` ya se encuentra en [pom.xml](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/pom.xml) y la aplicacion habilita repositorios JPA desde [DoswLibraryApplication.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/DoswLibraryApplication.java).
+
+### MongoDB Atlas
+
+Se agrego soporte para MongoDB mediante:
+
+- configuracion condicional en [MongoPersistenceConfig.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/infrastructure/mongodb/MongoPersistenceConfig.java)
+- sincronizacion secundaria en [DualPersistenceSyncService.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/infrastructure/mongodb/DualPersistenceSyncService.java)
+- documentos Mongo en [MongoBookDocument.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/infrastructure/mongodb/document/MongoBookDocument.java), [MongoUserDocument.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/infrastructure/mongodb/document/MongoUserDocument.java) y [MongoLoanDocument.java](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/src/main/java/edu/eci/dosw/infrastructure/mongodb/document/MongoLoanDocument.java)
+
+Variables de entorno soportadas:
+
+- `MONGODB_ENABLED`
+- `MONGODB_URI`
+- `MONGODB_DATABASE`
+- `MONGODB_WRITE_MODE`
 
 ## Seguridad
 
@@ -139,6 +163,66 @@ Ultima verificacion automatizada:
 .\mvnw.cmd test
 Tests run: 37, Failures: 0, Errors: 0, Skipped: 0
 ```
+
+## Despliegue En Azure
+
+El proyecto queda preparado para despliegue en Azure App Service usando contenedor Docker.
+
+Artefactos agregados:
+
+- [Dockerfile](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/Dockerfile)
+- [.dockerignore](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/.dockerignore)
+- [ci-cd.yml](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/.github/workflows/ci-cd.yml)
+
+## CI-CD
+
+Se implemento un pipeline completo con GitHub Actions en [ci-cd.yml](/C:/Users/juane/OneDrive/Escritorio/UNIVERSIDAD/Ciclos/Library/DOSW-Library/.github/workflows/ci-cd.yml).
+
+Flujo automatizado:
+
+- construccion del proyecto
+- ejecucion de pruebas con `mvn clean verify`
+- analisis estatico con Sonar
+- construccion de imagen Docker
+- publicacion en Azure Container Registry
+- despliegue automatico al entorno productivo en Azure Web App
+
+Triggers:
+
+- `pull_request` hacia `main`: build, pruebas y analisis estatico
+- `push` a `develop`: build, pruebas y analisis estatico
+- `push` a `main`: build, pruebas, analisis, construccion de imagen y despliegue a produccion
+- `workflow_dispatch`: ejecucion manual
+
+Secrets esperados por el pipeline:
+
+- `AZURE_CREDENTIALS`
+- `AZURE_WEBAPP_NAME`
+- `ACR_LOGIN_SERVER`
+- `ACR_USERNAME`
+- `ACR_PASSWORD`
+- `SONAR_TOKEN`
+
+Variables de entorno minimas a configurar en Azure:
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `MONGODB_ENABLED`
+- `MONGODB_URI`
+- `MONGODB_DATABASE`
+- `SERVER_SSL_ENABLED`
+- `SERVER_SSL_KEY_STORE`
+- `SERVER_SSL_KEY_STORE_PASSWORD`
+- `SERVER_SSL_KEY_STORE_TYPE`
+- `SERVER_SSL_KEY_ALIAS`
+
+Estado actual:
+
+- el codigo ya esta preparado para persistencia dual, CI/CD y despliegue en Azure
+- el despliegue real no se ejecuto desde este entorno porque hacen falta credenciales de Azure, ACR y MongoDB Atlas
 
 ## Video de demostracion
 

@@ -20,7 +20,7 @@ class UserControllerIT extends AbstractControllerIT {
     @Test
     void createShouldPersistUserForLibrarian() throws Exception {
         LibraryUser librarian = createUser(Role.LIBRARIAN);
-        RegisterRequest request = new RegisterRequest("Ana", "ana_reg", "Password123*");
+        RegisterRequest request = sampleRegisterRequest("Ana", "ana_reg");
 
         mockMvc.perform(post("/api/users")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
@@ -28,6 +28,8 @@ class UserControllerIT extends AbstractControllerIT {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.username").value("ana_reg"))
+                .andExpect(jsonPath("$.email").value("ana_reg@mail.com"))
+                .andExpect(jsonPath("$.membershipType").value("STANDARD"))
                 .andExpect(jsonPath("$.role").value("USER"));
 
         assertEquals(Role.USER, userRepository.findByUsername("ana_reg").orElseThrow().getRole());
@@ -56,7 +58,7 @@ class UserControllerIT extends AbstractControllerIT {
     @Test
     void createShouldRejectNormalUser() throws Exception {
         LibraryUser user = createUser(Role.USER);
-        RegisterRequest request = new RegisterRequest("Ana", "ana_reg_user", "Password123*");
+        RegisterRequest request = sampleRegisterRequest("Ana", "ana_reg_user");
 
         mockMvc.perform(post("/api/users")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(user))
@@ -69,7 +71,13 @@ class UserControllerIT extends AbstractControllerIT {
     @Test
     void createShouldRejectWeakPassword() throws Exception {
         LibraryUser librarian = createUser(Role.LIBRARIAN);
-        RegisterRequest request = new RegisterRequest("Ana Maria", "ana_weak", "password");
+        RegisterRequest request = new RegisterRequest(
+                "Ana Maria",
+                "ana_weak",
+                "ana_weak@mail.com",
+                "password",
+                edu.eci.dosw.core.model.MembershipType.STANDARD
+        );
 
         mockMvc.perform(post("/api/users")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
@@ -86,7 +94,8 @@ class UserControllerIT extends AbstractControllerIT {
         mockMvc.perform(get("/api/users/me")
                         .header(AUTHORIZATION, "Bearer " + tokenFor(user)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value(user.getUsername()));
+                .andExpect(jsonPath("$.username").value(user.getUsername()))
+                .andExpect(jsonPath("$.email").value(user.getEmail()));
     }
 
     @Test
