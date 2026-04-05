@@ -36,6 +36,30 @@ class LoanControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void createLoanShouldRejectNonExistingBook() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+
+        mockMvc.perform(post("/api/loans")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoanRequest(999999L))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createLoanShouldRejectBookWithoutAvailability() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+        Book book = createBook(5, 0);
+
+        mockMvc.perform(post("/api/loans")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoanRequest(book.getId()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("El libro no tiene unidades disponibles para préstamo"));
+    }
+
+    @Test
     void returnLoanShouldUpdateLoanAndRestoreStock() throws Exception {
         LibraryUser user = createUser(Role.USER);
         Book book = createBook(5, 2);
@@ -51,6 +75,30 @@ class LoanControllerIT extends AbstractControllerIT {
         Loan updatedLoan = loanRepository.findById(loan.getId()).orElseThrow();
         assertEquals(LoanStatus.RETURNED, updatedLoan.getStatus());
         assertEquals(2, bookRepository.findById(book.getId()).orElseThrow().getAvailableCopies());
+    }
+
+    @Test
+    void returnLoanShouldRejectAlreadyReturnedLoan() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+        Book book = createBook(5, 2);
+        Loan loan = createLoan(user, book, LoanStatus.RETURNED);
+
+        mockMvc.perform(patch("/api/loans/{id}/return", loan.getId())
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("No se puede devolver un préstamo que ya fue devuelto"));
+    }
+
+    @Test
+    void returnLoanShouldRejectAnotherUser() throws Exception {
+        LibraryUser owner = createUser(Role.USER);
+        LibraryUser otherUser = createUser(Role.USER);
+        Book book = createBook(5, 1);
+        Loan loan = createLoan(owner, book, LoanStatus.ACTIVE);
+
+        mockMvc.perform(patch("/api/loans/{id}/return", loan.getId())
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(otherUser)))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -76,5 +124,14 @@ class LoanControllerIT extends AbstractControllerIT {
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void findAllShouldRejectNormalUser() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+
+        mockMvc.perform(get("/api/loans")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isForbidden());
     }
 }

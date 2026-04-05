@@ -34,6 +34,55 @@ class BookControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void createShouldRejectUserWithoutLibrarianRole() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+
+        mockMvc.perform(post("/api/books")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
+    void createShouldRejectUnauthenticatedRequest() throws Exception {
+        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+
+        mockMvc.perform(post("/api/books")
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    void createShouldRejectInvalidToken() throws Exception {
+        BookRequest request = new BookRequest("Clean Code", "Martin", 5, 5);
+
+        mockMvc.perform(post("/api/books")
+                        .header(AUTHORIZATION, "Bearer token-invalido")
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    void createShouldRejectInvalidStock() throws Exception {
+        LibraryUser librarian = createUser(Role.LIBRARIAN);
+        BookRequest request = new BookRequest("Clean Code", "Martin", 0, 0);
+
+        mockMvc.perform(post("/api/books")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.details[0]").value("totalCopies: El stock total debe ser mayor a 0"));
+    }
+
+    @Test
     void findAllShouldReturnPersistedBooks() throws Exception {
         LibraryUser user = createUser(Role.USER);
         createBook(3, 3);
@@ -85,5 +134,19 @@ class BookControllerIT extends AbstractControllerIT {
         Book updated = bookRepository.findById(book.getId()).orElseThrow();
         assertEquals(7, updated.getTotalCopies());
         assertEquals(4, updated.getAvailableCopies());
+    }
+
+    @Test
+    void updateShouldRejectAvailableCopiesGreaterThanTotal() throws Exception {
+        LibraryUser librarian = createUser(Role.LIBRARIAN);
+        Book book = createBook(3, 2);
+        BookRequest request = new BookRequest("Updated", "Autor", 4, 5);
+
+        mockMvc.perform(put("/api/books/{id}", book.getId())
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("Los ejemplares disponibles no pueden superar el stock total"));
     }
 }

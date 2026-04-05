@@ -1,5 +1,6 @@
 package edu.eci.dosw;
 
+import edu.eci.dosw.controller.dto.request.RegisterRequest;
 import edu.eci.dosw.controller.dto.request.RoleUpdateRequest;
 import edu.eci.dosw.core.model.Role;
 import edu.eci.dosw.persistence.entity.LibraryUser;
@@ -10,10 +11,27 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class UserControllerIT extends AbstractControllerIT {
+
+    @Test
+    void createShouldPersistUserForLibrarian() throws Exception {
+        LibraryUser librarian = createUser(Role.LIBRARIAN);
+        RegisterRequest request = new RegisterRequest("Ana", "ana_reg", "Password123*");
+
+        mockMvc.perform(post("/api/users")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("ana_reg"))
+                .andExpect(jsonPath("$.role").value("USER"));
+
+        assertEquals(Role.USER, userRepository.findByUsername("ana_reg").orElseThrow().getRole());
+    }
 
     @Test
     void findAllShouldReturnUsersForLibrarian() throws Exception {
@@ -24,6 +42,41 @@ class UserControllerIT extends AbstractControllerIT {
                         .header(AUTHORIZATION, "Bearer " + tokenFor(librarian)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3));
+    }
+
+    @Test
+    void findAllShouldRejectNormalUser() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+
+        mockMvc.perform(get("/api/users")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void createShouldRejectNormalUser() throws Exception {
+        LibraryUser user = createUser(Role.USER);
+        RegisterRequest request = new RegisterRequest("Ana", "ana_reg_user", "Password123*");
+
+        mockMvc.perform(post("/api/users")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(user))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
+    void createShouldRejectWeakPassword() throws Exception {
+        LibraryUser librarian = createUser(Role.LIBRARIAN);
+        RegisterRequest request = new RegisterRequest("Ana Maria", "ana_weak", "password");
+
+        mockMvc.perform(post("/api/users")
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(librarian))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422));
     }
 
     @Test
@@ -49,5 +102,17 @@ class UserControllerIT extends AbstractControllerIT {
                 .andExpect(jsonPath("$.role").value("LIBRARIAN"));
 
         assertEquals(Role.LIBRARIAN, userRepository.findById(user.getId()).orElseThrow().getRole());
+    }
+
+    @Test
+    void updateRoleShouldRejectNormalUser() throws Exception {
+        LibraryUser requester = createUser(Role.USER);
+        LibraryUser user = createUser(Role.USER);
+
+        mockMvc.perform(patch("/api/users/{id}/role", user.getId())
+                        .header(AUTHORIZATION, "Bearer " + tokenFor(requester))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RoleUpdateRequest(Role.LIBRARIAN))))
+                .andExpect(status().isForbidden());
     }
 }
